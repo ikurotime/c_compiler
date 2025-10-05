@@ -6,8 +6,8 @@
 #include <filesystem>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
-#include "tokenization.hpp"
-#include "parser.hpp"
+#include "lexer.hpp"
+#include "ast.hpp"
 #include "codegen.hpp"
 
 namespace fs = filesystem;
@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) try {
   log.printline("File contents: [{}]", contents);
 
   // Tokenize
-  auto tokens_result = Tokenizer(contents, input_path.filename().string()).tokenize();
+  auto tokens_result = Lexer(contents, input_path.filename().string()).tokenize();
   if (!tokens_result) {
     println(cerr, "{}", llvm::toString(tokens_result.takeError()));
     return EXIT_FAILURE;
