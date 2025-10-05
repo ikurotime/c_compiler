@@ -1,16 +1,18 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Support/raw_ostream.h>
 #include "tokenization.hpp"
 #include "parser.hpp"
-#include "generation.hpp"
+#include "codegen.hpp"
 
 int main(int argc, char *argv[])
 {
   if (argc != 2)
   {
-    std::cerr << "Incorrect Usage Correct usage is..." << std::endl;
-    std::cerr << "neon <input.n>Usage" << std::endl;
+    std::cerr << "Incorrect Usage. Correct usage is..." << std::endl;
+    std::cerr << "husk <input.hsk>" << std::endl;
     return EXIT_FAILURE;
   }
 
@@ -24,32 +26,45 @@ int main(int argc, char *argv[])
 
   std::cout << contents << std::endl;
 
+  // Tokenize
   Tokenizer tokenizer(std::move(contents));
-
-  std::vector<Token>
-      tokens = tokenizer.tokenize();
+  std::vector<Token> tokens = tokenizer.tokenize();
   std::cout << "Tokenized" << std::endl;
+  
+  // Parse
   Parser parser(std::move(tokens));
-
   std::optional<NodeExit> tree = parser.parse();
-
   std::cout << "Parsed" << std::endl;
+  
   if (!tree.has_value())
   {
-    std::cerr << "No exit statement found" << std::endl;
+    std::cerr << "No valid program found" << std::endl;
     exit(EXIT_FAILURE);
   }
 
-  Generator generator(tree.value());
+  // Initialize LLVM
+  llvm::InitializeNativeTarget();
+  llvm::InitializeNativeTargetAsmPrinter();
+  llvm::InitializeNativeTargetAsmParser();
+
+  // Generate LLVM IR
+  CodeGen codegen;
+  codegen.generate(tree.value());
+  std::cout << "Generated LLVM IR" << std::endl;
+  
+  // Output LLVM IR to file
+  std::error_code EC;
+  llvm::raw_fd_ostream dest("out.ll", EC);
+  if (EC)
   {
-    std::fstream file("out.asm", std::ios::out);
-    file << generator.generate();
+    std::cerr << "Could not open file: " << EC.message() << std::endl;
+    return EXIT_FAILURE;
   }
-
-  std::cout << "Generated" << std::endl;
-
-  system("nasm -f macho64 out.asm");
-  system("ld -o out out.o -macos_version_min 13.0 -e _start -syslibroot `xcrun --show-sdk-path`");
+  codegen.getModule()->print(dest, nullptr);
+  dest.flush();
+  
+  std::cout << "\nLLVM IR saved to out.ll" << std::endl;
+  std::cout << "Compile with: clang out.ll -o out" << std::endl;
 
   return EXIT_SUCCESS;
 }

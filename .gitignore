@@ -13,8 +13,9 @@ Makefile
 # Executable output
 out
 out.exe
-kurolang
-kurolang.exe
+husk
+husk.exe
+*.ll
 out.asm
 
 # IDE and editor files

@@ -1,30 +1,90 @@
-C++ implementation of a simple programming language called KuroLang.
+# Husk
 
-> This is a simple programming language that I am creating to learn more about compilers and interpreters.
-> It produces x86-64 assembly code at the moment. This will be changed to LLVM.
+A simple programming language compiler built with C++ and LLVM.
 
+## Features
 
-To run / setup:
+- Integer arithmetic with `+` operator
+- `print()` function to output results
+- Compiles to LLVM IR (cross-platform)
 
-setup:
-```bash
-cmake -S . -B build
+## Syntax
+
+```c
+print(10 + 4);  // Outputs: 14
 ```
 
-compile:
+## Prerequisites
+
+- CMake 3.20+
+- C++20 compiler
+- LLVM 18+
+
+Install LLVM on macOS:
 ```bash
+brew install llvm
+```
+
+## Build
+
+```bash
+# Clean and configure
+rm -rf build
+cmake -S . -B build
+
+# Build
 cmake --build ./build/
 ```
 
-run:
-```bash
-./build/kurolang ./test.k
+## Usage
 
-# and then run the produced assembly code
+```bash
+# Compile Husk source to LLVM IR
+./build/husk ./main.hsk
+
+# Compile LLVM IR to native executable
+clang out.ll -o out
+
+# Run the executable
 ./out
 ```
 
-or the lazy version:
-```bash
-cmake --build ./build/ && ./build/kurolang ./test.k && ./out
+## Example
+
+**main.hsk:**
+```c
+print(10 + 4);
 ```
+
+**Output:**
+```
+14
+```
+
+## Architecture
+
+```
+Husk Source (.hsk)
+  ↓ Tokenizer
+Tokens
+  ↓ Parser
+AST (Abstract Syntax Tree)
+  ↓ CodeGen (LLVM)
+LLVM IR (.ll)
+  ↓ clang/llc
+Native Executable
+```
+
+## Current Language Features
+
+- **Arithmetic**: `+` (addition)
+- **Print**: `print(expression);`
+- **Integer literals**
+- **Expressions**: Simple binary operations
+
+## Roadmap
+
+- [ ] More operators (`-`, `*`, `/`)
+- [ ] Variables (`let x = 5;`)
+- [ ] Functions
+- [ ] Control flow (if/else, loops)
