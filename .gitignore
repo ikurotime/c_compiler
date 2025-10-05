@@ -1,22 +1,40 @@
 # Build directories
 build/
-CMakeFiles/
-CMakeCache.txt
+_deps/
 cmake_install.cmake
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+DartConfiguration.tcl
 Makefile
 
-# Generated assembly and object files
-*.asm
+# Compiled binaries
+husk
+kurolang
+prog
+out
+tests
+
+# Object files and assembly
 *.o
 *.obj
+*.asm
+*.s
 
-# Executable output
-out
-out.exe
-husk
-husk.exe
+# LLVM IR output
 *.ll
-out.asm
+*.bc
+
+# Debug and log files
+DEBUG.txt
+*.log
+
+# Test executables and temporary test files
+*.hsk
+*_test.hsk
+
+# Compiled output programs
+a.out
 
 # IDE and editor files
 .vscode/
@@ -24,21 +42,25 @@ out.asm
 *.swp
 *.swo
 *~
-
-# OS generated files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
 
-# Temporary files
-*.tmp
-*.temp
-*.log
+# CMake generated files
+compile_commands.json
+CTestTestfile.cmake
+DartConfiguration.tcl
+
+# Catch2 test framework (downloaded)
+external/
+
+# Documentation build artifacts
+docs/_build/
+*.pdf
 
 # Backup files
 *.bak
 *.backup
+*~
+
+# System files
+.DS_Store
+Thumbs.db
