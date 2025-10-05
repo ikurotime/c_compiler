@@ -5,9 +5,18 @@
 
 enum class TokenType
 {
-  exit,
   int_lit,
-  semi
+  semi,
+  open_paren,
+  close_paren,
+  ident,
+  let,
+  eq,
+  plus,
+  star,
+  minus,
+  fslash,
+  print
 };
 
 struct Token
@@ -35,15 +44,21 @@ public:
         {
           buf.push_back(consume());
         }
-        if (buf == "exit")
+        if (buf == "let")
         {
-          tokens.push_back({.type = TokenType::exit});
+          tokens.push_back({.type = TokenType::let});
+          buf.clear();
+          continue;
+        }
+        else if (buf == "print")
+        {
+          tokens.push_back({.type = TokenType::print});
           buf.clear();
           continue;
         }
         else
         {
-          std::cerr << "You messed up!" << std::endl;
+          std::cerr << "You messed up! - " << peek().value() << std::endl;
           exit(EXIT_FAILURE);
         }
       }
@@ -56,6 +71,24 @@ public:
         }
         tokens.push_back({.type = TokenType::int_lit, .value = buf});
         buf.clear();
+        continue;
+      }
+      else if (peek().value() == '(')
+      {
+        consume();
+        tokens.push_back({.type = TokenType::open_paren});
+        continue;
+      }
+      else if (peek().value() == ')')
+      {
+        consume();
+        tokens.push_back({.type = TokenType::close_paren});
+        continue;
+      }
+      else if (peek().value() == '+')
+      {
+        consume();
+        tokens.push_back({.type = TokenType::plus});
         continue;
       }
       else if (peek().value() == ';')
@@ -71,7 +104,7 @@ public:
       }
       else
       {
-        std::cerr << "You messed up!" << std::endl;
+        std::cerr << "You messed up! - " << peek().value() << std::endl;
         exit(EXIT_FAILURE);
       }
     }

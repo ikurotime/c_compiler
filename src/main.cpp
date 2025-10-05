@@ -48,7 +48,8 @@ int main(int argc, char *argv[])
 
   std::cout << "Generated" << std::endl;
 
-  // system("clang -o out out.asm -e _start");
+  system("nasm -f macho64 out.asm");
+  system("ld -o out out.o -macos_version_min 13.0 -e _start -syslibroot `xcrun --show-sdk-path`");
 
   return EXIT_SUCCESS;
 }
