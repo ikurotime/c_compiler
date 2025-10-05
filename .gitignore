@@ -15,6 +15,7 @@ out
 out.exe
 kurolang
 kurolang.exe
+out.asm
 
 # IDE and editor files
 .vscode/
