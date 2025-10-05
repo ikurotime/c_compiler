@@ -17,12 +17,13 @@ print(10 + 4);  // Outputs: 14
 ## Prerequisites
 
 - CMake 3.20+
-- C++20 compiler
+- C++23 compiler
 - LLVM 18+
 
 Install LLVM on macOS:
 ```bash
 brew install llvm
+export LLVM_DIR=$(brew --prefix llvm)/lib/cmake/llvm
 ```
 
 ## Build

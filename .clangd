@@ -1,0 +1,14 @@
+CompileFlags:
+  Add:
+    - -std=c++23
+    - -I/opt/homebrew/Cellar/llvm/21.1.2/include
+    - -D__STDC_CONSTANT_MACROS
+    - -D__STDC_FORMAT_MACROS
+    - -D__STDC_LIMIT_MACROS
+  CompilationDatabase: .
+
+Diagnostics:
+  UnusedIncludes: None
+  MissingIncludes: None
+
+

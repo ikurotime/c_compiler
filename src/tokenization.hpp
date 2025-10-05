@@ -1,7 +1,15 @@
 #pragma once
 
+#include <format>
 #include <string>
 #include <vector>
+#include <cctype>
+#include <llvm/Support/Error.h>
+#include "error_reporting.hpp"
+
+template<typename T>
+using Expected = llvm::Expected<T>;
+
 
 enum class TokenType
 {
@@ -9,6 +17,8 @@ enum class TokenType
   semi,
   open_paren,
   close_paren,
+  open_curly,
+  close_curly,
   ident,
   let,
   eq,
@@ -16,104 +26,137 @@ enum class TokenType
   star,
   minus,
   fslash,
-  print
+  print,
+  fn,
+  ret
 };
+
+using namespace std;
 
 struct Token
 {
   TokenType type;
-  std::optional<std::string> value{};
+  optional<string> value{};
+  size_t line = 1;
+  size_t column = 1;
 };
 
 class Tokenizer
 {
 public:
-  inline explicit Tokenizer(std::string src) : m_src(std::move(src))
+  inline explicit Tokenizer(string src, string filename = "") 
+    : m_src(src), m_error_reporter(move(src), move(filename))
   {
   }
-  inline std::vector<Token> tokenize()
+  
+private:
+  size_t m_line = 1;
+  size_t m_column = 1;
+  
+  Token make_token(TokenType type, optional<string> value = {}) {
+    return Token{.type = type, .value = value, .line = m_line, .column = m_column};
+  }
+
+public:
+  auto tokenize() -> Expected<vector<Token>>
   {
-    std::vector<Token> tokens;
-    std::string buf;
-    while (peek().has_value())
-    {
-      if (std::isalpha(peek().value()))
-      {
+    vector<Token> tokens;
+    string buf;
+    
+    while (peek().has_value()) {
+      const char current = peek().value();
+      
+      // Identifier or keyword
+      if (isalpha(current)) {
         buf.push_back(consume());
-        while (peek().has_value() && std::isalnum(peek().value()))
-        {
+        while (peek().has_value() && isalnum(peek().value())) {
           buf.push_back(consume());
         }
-        if (buf == "let")
-        {
-          tokens.push_back({.type = TokenType::let});
-          buf.clear();
-          continue;
+        
+        if (buf == "let") {
+          tokens.push_back(make_token(TokenType::let));
+        } else if (buf == "print") {
+          tokens.push_back(make_token(TokenType::print));
+        } else if (buf == "fn") {
+          tokens.push_back(make_token(TokenType::fn));
+        } else if (buf == "return") {
+          tokens.push_back(make_token(TokenType::ret));
+        } else {
+          tokens.push_back(make_token(TokenType::ident, buf));
         }
-        else if (buf == "print")
-        {
-          tokens.push_back({.type = TokenType::print});
-          buf.clear();
-          continue;
-        }
-        else
-        {
-          std::cerr << "You messed up! - " << peek().value() << std::endl;
-          exit(EXIT_FAILURE);
-        }
-      }
-      else if (std::isdigit(peek().value()))
-      {
-        buf.push_back(consume());
-        while (peek().has_value() && std::isdigit(peek().value()))
-        {
-          buf.push_back(consume());
-        }
-        tokens.push_back({.type = TokenType::int_lit, .value = buf});
         buf.clear();
-        continue;
       }
-      else if (peek().value() == '(')
-      {
+      // Integer literal
+      else if (isdigit(current)) {
+        buf.push_back(consume());
+        while (peek().has_value() && isdigit(peek().value())) {
+          buf.push_back(consume());
+        }
+        tokens.push_back(make_token(TokenType::int_lit, buf));
+        buf.clear();
+      }
+      // Single character tokens
+      else if (current == '(') {
         consume();
-        tokens.push_back({.type = TokenType::open_paren});
-        continue;
+        tokens.push_back(make_token(TokenType::open_paren));
       }
-      else if (peek().value() == ')')
-      {
+      else if (current == ')') {
         consume();
-        tokens.push_back({.type = TokenType::close_paren});
-        continue;
+        tokens.push_back(make_token(TokenType::close_paren));
       }
-      else if (peek().value() == '+')
-      {
+      else if (current == '{') {
         consume();
-        tokens.push_back({.type = TokenType::plus});
-        continue;
+        tokens.push_back(make_token(TokenType::open_curly));
       }
-      else if (peek().value() == ';')
-      {
+      else if (current == '}') {
         consume();
-        tokens.push_back({.type = TokenType::semi});
-        continue;
+        tokens.push_back(make_token(TokenType::close_curly));
       }
-      else if (std::isspace(peek().value()))
-      {
+      else if (current == '+') {
         consume();
-        continue;
+        tokens.push_back(make_token(TokenType::plus));
       }
-      else
-      {
-        std::cerr << "You messed up! - " << peek().value() << std::endl;
-        exit(EXIT_FAILURE);
+      else if (current == '-') {
+        consume();
+        tokens.push_back(make_token(TokenType::minus));
+      }
+      else if (current == '*') {
+        consume();
+        tokens.push_back(make_token(TokenType::star));
+      }
+      else if (current == '=') {
+        consume();
+        tokens.push_back(make_token(TokenType::eq));
+      }
+      else if (current == ';') {
+        consume();
+        tokens.push_back(make_token(TokenType::semi));
+      }
+      // Skip whitespace
+      else if (isspace(current)) {
+        if (current == '\n') {
+          m_line++;
+          m_column = 1;
+        } else {
+          m_column++;
+        }
+        consume();
+      }
+      // Unrecognized character
+      else {
+        return llvm::createStringError(
+          llvm::inconvertibleErrorCode(),
+          m_error_reporter.format_error(format("Unexpected character '{}'", current), m_line, m_column)
+        );
       }
     }
+    
     m_index = 0;
     return tokens;
   }
 
 private:
-  [[nodiscard]] inline std::optional<char>
+  [[nodiscard]] inline optional<char>
   peek(int ahead = 1) const
   {
     if (m_index + ahead > m_src.length())
@@ -128,9 +171,11 @@ private:
 
   inline char consume()
   {
+    m_column++;
     return m_src.at(m_index++);
   }
 
-  const std::string m_src;
-  int m_index = 0;
+  const string m_src;
+  size_t m_index = 0;
+  ErrorReporter m_error_reporter;
 };

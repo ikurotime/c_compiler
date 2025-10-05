@@ -1,70 +1,125 @@
+#include <print>
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <string_view>
+#include <filesystem>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
 #include "tokenization.hpp"
 #include "parser.hpp"
 #include "codegen.hpp"
 
-int main(int argc, char *argv[])
-{
-  if (argc != 2)
-  {
-    std::cerr << "Incorrect Usage. Correct usage is..." << std::endl;
-    std::cerr << "husk <input.hsk>" << std::endl;
-    return EXIT_FAILURE;
-  }
+namespace fs = filesystem;
 
-  std::string contents;
-  {
-    std::stringstream contents_streams;
-    std::fstream input(argv[1], std::ios::in);
-    contents_streams << input.rdbuf();
-    contents = contents_streams.str();
-  }
-
-  std::cout << contents << std::endl;
-
-  // Tokenize
-  Tokenizer tokenizer(std::move(contents));
-  std::vector<Token> tokens = tokenizer.tokenize();
-  std::cout << "Tokenized" << std::endl;
+// Simple debug logger using C++23 println
+class DebugLog {
+  ofstream file;
+public:
+  explicit DebugLog(string_view filename) : file(filename.data()) {}
   
-  // Parse
-  Parser parser(std::move(tokens));
-  std::optional<NodeExit> tree = parser.parse();
-  std::cout << "Parsed" << std::endl;
-  
-  if (!tree.has_value())
-  {
-    std::cerr << "No valid program found" << std::endl;
-    exit(EXIT_FAILURE);
+  template<typename... Args>
+  void printline(format_string<Args...> fmt, Args&&... args) {
+    println(file, fmt, forward<Args>(args)...);
   }
+};
 
-  // Initialize LLVM
+// Helper to read entire file into string
+auto read_file(const fs::path& path) -> Expected<string> {
+  if (auto file = ifstream(path); file) {
+    stringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+  }
+  return llvm::createStringError(llvm::inconvertibleErrorCode(), format("Could not open file: {}", path.string()));
+}
+
+// Initialize LLVM targets
+void init_llvm_targets() {
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
   llvm::InitializeNativeTargetAsmParser();
+}
 
-  // Generate LLVM IR
-  CodeGen codegen;
-  codegen.generate(tree.value());
-  std::cout << "Generated LLVM IR" << std::endl;
+// Write LLVM IR to file
+auto write_llvm_ir(llvm::Module* module, string_view output_path) 
+    -> llvm::Error {
+  error_code ec;
+  llvm::raw_fd_ostream dest(output_path.data(), ec);
   
-  // Output LLVM IR to file
-  std::error_code EC;
-  llvm::raw_fd_ostream dest("out.ll", EC);
-  if (EC)
-  {
-    std::cerr << "Could not open file: " << EC.message() << std::endl;
+  if (ec) {
+    return llvm::createStringError(llvm::inconvertibleErrorCode(), format("Could not write IR: {}", ec.message()));
+  }
+  
+  module->print(dest, nullptr);
+  dest.flush();
+  return llvm::Error::success();
+}
+
+int main(int argc, char* argv[]) try {
+  auto log = DebugLog("DEBUG.txt");
+  log.printline("Starting compiler...");
+  
+  // Validate arguments
+  if (argc != 2) {
+    println(cerr, "Usage: husk <input.hsk>");
     return EXIT_FAILURE;
   }
-  codegen.getModule()->print(dest, nullptr);
-  dest.flush();
+  log.printline("Args OK");
+
+  // Read source file
+  const auto input_path = fs::path(argv[1]);
+  log.printline("Opening file: {}", input_path.string());
   
-  std::cout << "\nLLVM IR saved to out.ll" << std::endl;
-  std::cout << "Compile with: clang out.ll -o out" << std::endl;
+  auto contents_result = read_file(input_path);
+  if (!contents_result) {
+    println(cerr, "Error: {}", llvm::toString(contents_result.takeError()));
+    return EXIT_FAILURE;
+  }
+  const auto& contents = *contents_result;
+  
+  log.printline("File size: {} bytes", size(contents));
+  log.printline("File contents: [{}]", contents);
+
+  // Tokenize
+  auto tokens_result = Tokenizer(contents, input_path.filename().string()).tokenize();
+  if (!tokens_result) {
+    println(cerr, "{}", llvm::toString(tokens_result.takeError()));
+    return EXIT_FAILURE;
+  }
+  auto tokens = *tokens_result;
+  log.printline("Token count: {}", size(tokens));
+  
+  // Parse
+  auto program_result = Parser(move(tokens), contents, input_path.filename().string()).parse();
+  if (!program_result) {
+    println(cerr, "{}", llvm::toString(program_result.takeError()));
+    return EXIT_FAILURE;
+  }
+  auto program = *program_result;
+  log.printline("Function count: {}", size(program.functions));
+
+  // Generate LLVM IR
+  init_llvm_targets();
+  log.printline("Generating LLVM IR...");
+  
+  auto codegen = CodeGen();
+  if (auto result = codegen.generate(program)) {
+    println(cerr, "Code generation error: {}", llvm::toString(std::move(result)));
+    return EXIT_FAILURE;
+  }
+  log.printline("Generated LLVM IR");
+  
+  // Write output
+  if (auto result = write_llvm_ir(codegen.getModule().get(), "out.ll")) {
+    println(cerr, "Error: {}", llvm::toString(std::move(result)));
+    return EXIT_FAILURE;
+  }
+  log.printline("Done!");
 
   return EXIT_SUCCESS;
+}
+catch (const exception& e) {
+  println(cerr, "Error: {}", e.what());
+  return EXIT_FAILURE;
 }

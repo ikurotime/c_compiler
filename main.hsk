@@ -1,1 +1,4 @@
-print(20 + 4);
+fn main() {
+  let x = 33;
+  print(x);
+}
