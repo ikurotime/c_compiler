@@ -6,29 +6,46 @@
 #include "value.h"
 
 void initChunk(Chunk *chunk) {
-  chunk->count = 0;
-  chunk->capacity = 0;
+  chunk->lineCount = 0;
+  chunk->lineCapacity = 0;
+  chunk->runCount = 0;
+  chunk->runCapacity = 0;
   chunk->code = NULL;
   chunk->lines = NULL;
   initValueArray(&chunk->constants);
 }
 
 void writeChunk(Chunk *chunk, uint8_t byte, int line) {
-  if (chunk->capacity < chunk->count + 1) {
-    int oldCapacity = chunk->capacity;
-    chunk->capacity = GROW_CAPACITY(oldCapacity);
+  if (chunk->lineCapacity < chunk->lineCount + 1) {
+    int oldCapacity = chunk->lineCapacity;
+    chunk->lineCapacity = GROW_CAPACITY(oldCapacity);
     chunk->code =
-        GROW_ARRAY(uint8_t, chunk->code, oldCapacity, chunk->capacity));
-    chunk->lines = GROW_ARRAY(int, chunk->lines, oldCapacity, chunk->capacity));
+        GROW_ARRAY(uint8_t, chunk->code, oldCapacity, chunk->lineCapacity));
   }
-  chunk->code[chunk->count] = byte;
-  chunk->lines[chunk->count] = line;
-  chunk->count++;
+  if (chunk->lines != NULL && chunk->lines->line == line) {
+    chunk->lines->count++;
+  } else {
+    chunk->lines->line = line;
+    chunk->lines->count = 1;
+  }
+  chunk->code[chunk->lineCount] = byte;
+  chunk->lineCount++;
+}
+
+int getLine(Chunk *chunk, int instruction_index) {
+  for (int i = 0; i < chunk->lineCount; ++i) {
+    if (instruction_index < chunk->lines[i].count) {
+      return chunk->lines[i].line;
+    } else {
+      instruction_index -= chunk->lines[i].count;
+    }
+  }
+  return -1;
 }
 
 void freeChunk(Chunk *chunk) {
-  FREE_ARRAY(uint8_t, chunk->code, chunk->capacity);
-  FREE_ARRAY(int, chunk->lines, chunk->capacity);
+  FREE_ARRAY(uint8_t, chunk->code, chunk->lineCapacity);
+  FREE_ARRAY(int, chunk->lines, chunk->runCapacity);
   freeValueArray(&chunk->constants);
   initChunk(chunk);
 }
