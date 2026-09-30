@@ -6,30 +6,41 @@
 #include "value.h"
 
 void initChunk(Chunk *chunk) {
+  chunk->count = 0;
+  chunk->capacity = 0;
+  chunk->code = NULL;
   chunk->lineCount = 0;
   chunk->lineCapacity = 0;
-  chunk->runCount = 0;
-  chunk->runCapacity = 0;
-  chunk->code = NULL;
   chunk->lines = NULL;
   initValueArray(&chunk->constants);
 }
 
 void writeChunk(Chunk *chunk, uint8_t byte, int line) {
-  if (chunk->lineCapacity < chunk->lineCount + 1) {
-    int oldCapacity = chunk->lineCapacity;
-    chunk->lineCapacity = GROW_CAPACITY(oldCapacity);
+  /* The code array grows one byte at a time, as before. */
+  if (chunk->capacity < chunk->count + 1) {
+    int oldCapacity = chunk->capacity;
+    chunk->capacity = GROW_CAPACITY(oldCapacity);
     chunk->code =
-        GROW_ARRAY(uint8_t, chunk->code, oldCapacity, chunk->lineCapacity));
+        GROW_ARRAY(uint8_t, chunk->code, oldCapacity, chunk->capacity));
   }
-  if (chunk->lines != NULL && chunk->lines->line == line) {
-    chunk->lines->count++;
+  chunk->code[chunk->count] = byte;
+  chunk->count++;
+
+  /* The runs array grows only when a new run is started. */
+  if (chunk->lineCount > 0 &&
+      chunk->lines[chunk->lineCount - 1].line == line) {
+    chunk->lines[chunk->lineCount - 1].count++;
   } else {
-    chunk->lines->line = line;
-    chunk->lines->count = 1;
+    if (chunk->lineCapacity < chunk->lineCount + 1) {
+      int oldCapacity = chunk->lineCapacity;
+      chunk->lineCapacity = GROW_CAPACITY(oldCapacity);
+      chunk->lines = GROW_ARRAY(LineRun, chunk->lines, oldCapacity,
+                                chunk->lineCapacity));
+    }
+    chunk->lines[chunk->lineCount].line = line;
+    chunk->lines[chunk->lineCount].count = 1;
+    chunk->lineCount++;
   }
-  chunk->code[chunk->lineCount] = byte;
-  chunk->lineCount++;
 }
 
 int getLine(Chunk *chunk, int instruction_index) {
@@ -44,8 +55,8 @@ int getLine(Chunk *chunk, int instruction_index) {
 }
 
 void freeChunk(Chunk *chunk) {
-  FREE_ARRAY(uint8_t, chunk->code, chunk->lineCapacity);
-  FREE_ARRAY(int, chunk->lines, chunk->runCapacity);
+  FREE_ARRAY(uint8_t, chunk->code, chunk->capacity);
+  FREE_ARRAY(LineRun, chunk->lines, chunk->lineCapacity);
   freeValueArray(&chunk->constants);
   initChunk(chunk);
 }

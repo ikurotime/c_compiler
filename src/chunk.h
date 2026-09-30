@@ -15,12 +15,12 @@ typedef struct {
 } LineRun;
 
 typedef struct {
-  int lineCount;
-  int lineCapacity;
-  int runCount;
-  int runCapacity;
+  int count;    // number of bytes in code[]
+  int capacity; // capacity of code[]
   uint8_t *code;
-  LineRun *lines;
+  LineRun *lines;   // run-length encoded line info
+  int lineCount;    // number of runs in lines[]
+  int lineCapacity; // capacity of lines[]
   ValueArray constants;
 } Chunk;
 
