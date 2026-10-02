@@ -27,8 +27,7 @@ void writeChunk(Chunk *chunk, uint8_t byte, int line) {
   chunk->count++;
 
   /* The runs array grows only when a new run is started. */
-  if (chunk->lineCount > 0 &&
-      chunk->lines[chunk->lineCount - 1].line == line) {
+  if (chunk->lineCount > 0 && chunk->lines[chunk->lineCount - 1].line == line) {
     chunk->lines[chunk->lineCount - 1].count++;
   } else {
     if (chunk->lineCapacity < chunk->lineCount + 1) {
@@ -40,6 +39,19 @@ void writeChunk(Chunk *chunk, uint8_t byte, int line) {
     chunk->lines[chunk->lineCount].line = line;
     chunk->lines[chunk->lineCount].count = 1;
     chunk->lineCount++;
+  }
+}
+
+void writeConstant(Chunk *chunk, Value value, int line) {
+  int index = addConstant(chunk, value);
+  if (index < 256) {
+    writeChunk(chunk, OP_CONSTANT, line);
+    writeChunk(chunk, (uint8_t)index, line);
+  } else {
+    writeChunk(chunk, OP_CONSTANT_LONG, line);
+    writeChunk(chunk, (uint8_t)(index >> 16), line);
+    writeChunk(chunk, (uint8_t)(index >> 8), line);
+    writeChunk(chunk, (uint8_t)index, line);
   }
 }
 
